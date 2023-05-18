@@ -1,0 +1,439 @@
+
+ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. Heinz                                         PAGE 1
+
+
+
+
+
+       MCS-51 Family Macro Assembler   A S E M - 5 1   V 1.3
+       =====================================================
+
+
+
+	Source File:	led.asm
+	Object File:	led.hex
+	List File:	led.lst
+
+
+
+ Line  I  Addr  Code            Source
+
+    1:				; wyswietlanie dzialajacaego zegara na ekranie
+    2:				; A / ACC - akumulator nie zawsze ktoras dziala
+    3:		B	 97	TEST bit P1.7
+    4:		B	 96	SEG7 bit P1.6
+    5:		B	 95	BUZZ bit P1.5
+    6:
+    7:		B	 B5	SKEY bit P3.5
+    8:
+    9:		N      0030	CSDS equ 30h 				;wyœwietlacze
+   10:		N      0038	CSDB equ 38h 				;segmenty
+   11:
+   12:		N      007C	KEYS equ 7Ch				;cztery ostatnie stany klawiatury sekwencyjnej/multipleksowa
+				nej
+   13:
+   14:		N      0076	ZEGAR equ 76h 				;tablica na 6 cyfr zegara
+   15:
+   16:		N      0075	SS equ 75h				;sekundy
+   17:		N      0074	MM equ 74h				;minuty
+   18:		N      0073	GG equ 73h				;godziny
+   19:		N      0000	org 0
+   20:	  0000	02 00 80		ljmp start
+   21:
+   22:		N      000B	org 0Bh					;procedura/podprogram/funkcja obslugi przerwania TIMER0
+   23:	  000B	75 8C E3		mov TH0, #227           	;wlasciwa wartosc poczatkowa
+   24:	  000E	75 8A FC		mov TL0, #252
+   25:	  0011	D2 D5			setb F0				;bylo przerwanie
+   26:	  0013	32			reti                    	;powrot z przerwania
+   27:
+   28:
+   29:		N      0080	org 80h
+   30:	  0080			start:
+   31:
+   32:	  0080	75 75 36		mov SS, #54			;stan poczatkowy zegara
+   33:	  0083	75 74 1A		mov MM, #26
+   34:	  0086	75 73 16		mov GG, #22
+   35:
+   36:	  0089	75 7C 00		mov KEYS, #0
+   37:
+   38:	  008C	12 01 1A		lcall przelicz			;wywolanie funkcji
+   39:
+   40:	  008F	C2 96		    clr SEG7
+   41:	  0091	7F 01			mov R7, #00000001b 		;najmlodszy wyswietlacz do R7
+   42:	  0093	79 76			mov R1, #ZEGAR     		;adres najmlodszej cyfry zegara do R1
+
+ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. Heinz                                         PAGE 2
+
+
+
+ Line  I  Addr  Code            Source
+
+   43:	  0095	90 01 B0		mov DPTR, #wzory   		;adres wzorow cyfr 7seg do DPTR
+   44:
+   45:	  0098	7E 00			mov R6, #0			;zeby pierwsza sekunda trwala sekunde
+   46:	  009A	7D 04			mov R5, #4
+   47:
+   48:	  009C	75 8C E3		mov TH0, #227           	;wlasciwa wartosc poczatkowa
+   49:	  009F	75 8A FC		mov TL0, #252          	 	;przerwanie co 900 cykli maszynowych - 1024 przerwania na se
+				kunde
+   50:
+   51:	  00A2	75 A8 00		mov IE, #0 			;zakaz obslugi jakiegokolwiek przerwania
+   52:	  00A5	75 89 70		mov TMOD, #01110000b 		;blokujemy TIMER1, TIMER0 w trybie 13bit
+   53:	  00A8	D2 8C			setb TR0			;zgoda na zliczanie przez TIMER0
+   54:	  00AA	D2 A9			setb ET0 			;zgoda na obluge przerwania od TIMER0
+   55:	  00AC	D2 AF			setb EA				;globalna zgoda na obsluge przerwan
+   56:
+   57:
+   58:	  00AE			mLoop:
+   59:	  00AE	30 D5 FD		jnb F0, mLoop           	;czekamy na przerwanie
+   60:	  00B1	C2 D5			clr F0                  	;zapominamy o przerwaniu
+   61:
+   62:					;tutaj jestem 1024 razy na sekunde
+   63:
+   64:	  00B3	78 38			mov R0, #CSDB      		;adres zatrzasku segmentow do R0
+   65:	  00B5	E7			mov A, @R1         		;wartosc odpowiedniej cyfry zegara do ACC
+   66:	  00B6	09			inc R1             		;w nastepnym obrocie petli bedzie nastepna cyfra
+   67:	  00B7	D2 96			setb SEG7          		;wylaczam wyswietlacze, zeby nie bylo duchow (cyfr)
+   68:	  00B9	F2			movx @R0, A  	   		;wysylam wzorek do zatrzasku segmentow
+   69:
+   70:	  00BA	78 30		    mov R0, #CSDS      			;adres zatrzasku wyswieltaczy do R0
+   71:	  00BC	EF			mov A, R7          		;aktualny wyswietlacz do ACC
+   72:	  00BD	F2			movx @R0, A  	   		;wybieram aktualny wyswietlacz zatrzaskiem CSDS
+   73:	  00BE	C2 96			clr SEG7           		;wlaczam wyswietlacze
+   74:
+   75:	  00C0	A2 B5			mov C, SKEY   			;stan klawisza do bitu C (carry)
+   76:	  00C2	50 02			jnc brakKlawisza
+   77:					;jezeli jest wcisniety
+   78:	  00C4	42 7C			orl KEYS, A
+   79:
+   80:
+   81:	  00C6			brakKlawisza:
+   82:
+   83:
+   84:	  00C6	23			rl A               		;w nastepnym obrocie petli bedzie nastepny wyswietlacz
+   85:	  00C7	FF			mov R7, A          		;zapamietuje nowowybrany wyswietlacz
+   86:	  00C8	30 E7 22		jnb ACC.7, noACC7  		;test czy nie minalem wyswietlaczy
+   87:	  00CB	7F 01			mov R7, #00000001b  		;jezeli tak wracam na najmlodszy wyswietlacz
+   88:	  00CD	79 76			mov R1, #ZEGAR     		;i najmlodsza cyfre zegara
+   89:
+   90:				    	;tu jest stan 4 ostatnich odczytow klawiatury
+   91:
+   92:	  00CF	E5 7C			mov A, KEYS
+   93:	  00D1	B5 7D 0D		cjne A, KEYS+1, niestabilna
+   94:	  00D4	B5 7E 0A		cjne A, KEYS+2, niestabilna  	;3 razy z rzedu przeczytal to samo
+   95:	  00D7	B5 7F 02		cjne A, KEYS+3, stabilna	;jak 3 te same i 4 inny
+				              ;zeby zapobiec wielokrotnej obsludze
+   96:
+
+ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. Heinz                                         PAGE 3
+
+
+
+ Line  I  Addr  Code            Source
+
+   97:	  00DA	80 05			sjmp niestabilna    		;zeby wielokrotnie nie oblugiwac tego samego klawisza
+				              ;tego samego klawisza
+   98:
+   99:	  00DC			stabilna:
+  100:	  00DC	60 03			jz niestabilna
+  101:	  00DE	12 01 48		lcall obslugaKlawiatury
+  102:
+  103:	  00E1			niestabilna:
+  104:	  00E1	85 7E 7F		mov KEYS+3, KEYS+2
+  105:	  00E4	85 7D 7E		mov KEYS+2, KEYS+1
+  106:	  00E7	85 7C 7D		mov KEYS+1, KEYS
+  107:	  00EA	75 7C 00		mov KEYS, #0
+  108:
+  109:	  00ED			noACC7:
+  110:
+  111:
+  112:	  00ED	DE BF		    djnz R6, mLoop     			;zliczamy przerwania do 1024
+  113:	  00EF	DD BD			djnz R5, mLoop
+  114:
+  115:	  00F1	7E 00		    mov R6, #0		   		;zeby kolejne sekundy trwaly sekunde
+  116:					;mov R6, #4             	;testowe szybkie odliczanie
+  117:	  00F3	7D 04			mov R5, #4
+  118:				    ;mov R5, #1             		;tez testowe szybkie odliczanie
+  119:
+  120:					;tutaj jestem co sekunde
+  121:
+  122:	  00F5	05 75			inc SS
+  123:	  00F7	E5 75			mov A, SS               	;sekundy do akumulatora
+  124:	  00F9	B4 3C 17		cjne A, #60, nie60      	;testujemy czy osiagnieto wartosc 60
+  125:	  00FC	75 75 00		mov SS, #0              	;jezeli tak to wracamy z licznikiem sekund na 0
+  126:
+  127:	  00FF	05 74			inc MM                  	;i inkrementujemy minuty
+  128:	  0101	E5 74			mov A, MM               	;to samo dla minut
+  129:	  0103	B4 3C 0D		cjne A, #60, nie60
+  130:	  0106	75 74 00		mov MM, #0
+  131:
+  132:	  0109	05 73			inc GG                  	;to samo dla godzin
+  133:	  010B	E5 73			mov A, GG
+  134:	  010D	B4 18 03		cjne A, #24, nie60
+  135:	  0110	75 73 00		mov GG, #0
+  136:
+  137:	  0113			nie60:
+  138:	  0113	12 01 1A		lcall przelicz
+  139:
+  140:	  0116	B2 97		    cpl P1.7           			;przelacza diode TEST
+  141:
+  142:	  0118	80 94			sjmp mLoop
+  143:
+  144:	  011A			przelicz:
+  145:	  011A	90 01 B0		mov DPTR, #wzory 		;adres wzorow do DPTR
+  146:
+  147:	  011D	E5 75			mov A, SS         		;sekundy do akumulatora
+  148:	  011F	75 F0 0A		mov B, #10        		;dzielnik do B
+  149:	  0122	84			div AB           		;dzielenie calkowite - A- wynik, B-reszta
+  150:
+  151:	  0123	93			movc A, @A+DPTR			;zamieniam dziesiatki sekund na odpowiedni wzorek
+
+ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. Heinz                                         PAGE 4
+
+
+
+ Line  I  Addr  Code            Source
+
+  152:	  0124	F5 77			mov ZEGAR+1, A      		;zapamietuje wzorek we wlasciwym miejscu
+  153:	  0126	E5 F0			mov A, B           		;jednostki sekund do akumulatora
+  154:	  0128	93			movc A, @A+DPTR			;zamieniam jednostki sekund na odpowiedni wzorek
+  155:	  0129	F5 76			mov ZEGAR, A      		;zapamietuje wzorek we wlasciwym miejscu
+  156:
+  157:
+  158:	  012B	E5 74			mov A, MM         		;minuty do akumulatora
+  159:	  012D	75 F0 0A		mov B, #10        		;dzielnik do B
+  160:	  0130	84			div AB           		;dzielenie calkowite - A- wynik, B-reszta
+  161:
+  162:	  0131	93		    movc A, @A+DPTR			;zamieniam dziesiatki minut na odpowiedni wzorek
+  163:	  0132	F5 79			mov ZEGAR+3, A      		;zapamietuje wzorek we wlasciwym miejscu
+  164:	  0134	E5 F0			mov A, B           		;jednostki minut do akumulatora
+  165:	  0136	93			movc A, @A+DPTR			;zamieniam jednostki minut na odpowiedni wzorek
+  166:	  0137	F5 78			mov ZEGAR+2, A      		;zapamietuje wzorek we wlasciwym miejscu
+  167:
+  168:
+  169:	  0139	E5 73			mov A, GG         		;godziny do akumulatora
+  170:	  013B	75 F0 0A		mov B, #10        		;dzielnik do B
+  171:	  013E	84			div AB           		;dzielenie calkowite - A- wynik, B-reszta
+  172:
+  173:	  013F	93			movc A, @A+DPTR			;zamieniam dziesiatki godzin na odpowiedni wzorek
+  174:	  0140	F5 7B			mov ZEGAR+5, A      		;zapamietuje wzorek we wlasciwym miejscu
+  175:	  0142	E5 F0			mov A, B           		;jednostki godzin do akumulatora
+  176:	  0144	93			movc A, @A+DPTR			;zamieniam jednostki godzin na odpowiedni wzorek
+  177:	  0145	F5 7A			mov ZEGAR+4, A      		;zapamietuje wzorek we wlasciwym miejscu
+  178:
+  179:	  0147	22			ret
+  180:
+  181:	  0148			obslugaKlawiatury:                        	;enter ze strzalkami zmniejsza a escape zwieksza
+  182:	  0148	B4 22 0C		cjne A, #100010b, nieGodzinyGora      	;strzalka w lewo i escape lub enter
+  183:	  014B	AC 73			mov R4, GG
+  184:	  014D	BC 17 05		cjne R4, #23, zwiekszGodziny
+  185:	  0150	75 73 00		mov GG, #0
+  186:	  0153	80 02			sjmp nieGodzinyGora
+  187:	  0155			zwiekszGodziny:
+  188:	  0155	05 73			inc GG
+  189:
+  190:	  0157			nieGodzinyGora:
+  191:	  0157	B4 21 0C		cjne A, #100001b, nieGodzinyDol
+  192:	  015A	AC 73			mov R4, GG
+  193:	  015C	BC 00 05		cjne R4, #0, zmniejszGodziny
+  194:	  015F	75 73 17		mov GG, #23
+  195:	  0162	80 02			sjmp nieGodzinyDol
+  196:	  0164			zmniejszGodziny:
+  197:	  0164	15 73			dec GG
+  198:
+  199:	  0166			nieGodzinyDol:
+  200:	  0166	B4 12 0C		cjne A, #10010b, nieMinutyGora  	;strzalka w dol i escape lub enter
+  201:	  0169	AC 74			mov R4, MM
+  202:	  016B	BC 3B 05		cjne R4, #59, zwiekszMinuty
+  203:	  016E	75 74 00		mov MM, #0
+  204:	  0171	80 02			sjmp nieMinutyGora
+  205:	  0173			zwiekszMinuty:
+  206:	  0173	05 74			inc MM
+  207:
+
+ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. Heinz                                         PAGE 5
+
+
+
+ Line  I  Addr  Code            Source
+
+  208:	  0175			nieMinutyGora:
+  209:	  0175	B4 11 0C		cjne A, #10001b, nieMinutyDol
+  210:	  0178	AC 74			mov R4, MM
+  211:	  017A	BC 00 05		cjne R4, #0, zmniejszMinuty
+  212:	  017D	75 74 3B		mov MM, #59
+  213:	  0180	80 02			sjmp nieMinutyDol
+  214:	  0182			zmniejszMinuty:
+  215:	  0182	15 74			dec MM
+  216:
+  217:	  0184			nieMinutyDol:
+  218:	  0184	B4 06 0C		cjne A, #110b, nieSekundyGora  		;strzalka w prawo i escape lub enter
+  219:	  0187	AC 75		 	mov R4, SS
+  220:	  0189	BC 3B 05		cjne R4, #59, zwiekszSekundy
+  221:	  018C	75 75 00		mov SS, #0
+  222:	  018F	80 02			sjmp nieSekundyGora
+  223:	  0191			zwiekszSekundy:
+  224:	  0191	05 75		 	inc SS
+  225:
+  226:	  0193			nieSekundyGora:
+  227:	  0193	B4 05 0C		cjne A, #101b, nieSekundyDol
+  228:	  0196	AC 75			mov R4, SS
+  229:	  0198	BC 00 05		cjne R4, #0, zmniejszSekundy
+  230:	  019B	75 75 3B		mov SS, #59
+  231:	  019E	80 02			sjmp nieSekundyDol
+  232:	  01A0			zmniejszSekundy:
+  233:	  01A0	15 75			dec SS
+  234:
+  235:	  01A2			nieSekundyDol:
+  236:	  01A2	B4 08 07		cjne A, #1000b, nieGora   		;strzalka w gore zeruje sekundnik
+  237:	  01A5	75 75 00		mov SS, #0
+  238:	  01A8	7E 00			mov R6, #0		   		;wyzerowanie licznikow przerwan
+  239:	  01AA	7D 04			mov R5, #4
+  240:
+  241:	  01AC			nieGora:
+  242:
+  243:	  01AC	12 01 1A	    	lcall przelicz
+  244:	  01AF	22			ret
+  245:
+  246:	  01B0			wzory:  			 		;dla wyswietlacza 7seg
+  247:	  01B0	3F 06 5B 4F	db 00111111b, 00000110b, 01011011b, 01001111b
+  248:	  01B4	66 6D 7D 07	db 01100110b, 01101101b, 01111101b, 00000111b
+  249:	  01B8	7F 6F 77 7C	db 01111111b, 01101111b, 01110111b, 01111100b
+  250:
+  251:				end
+
+
+
+
+
+                     register banks used:  ---
+
+                     no errors
+
+
+
+
+ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. Heinz                                         PAGE 6
+
+
+
+
+
+	       L I S T   O F   S Y M B O L S
+	       =============================
+
+
+SYMBOL				  TYPE     VALUE	LINE
+------------------------------------------------------------
+??ASEM_51			  NUMBER    8051
+??VERSION			  NUMBER    0130
+AC				  BIT	      D6
+ACC				  DATA	      E0
+B				  DATA	      F0
+BRAKKLAWISZA			  CODE	    00C6	  81
+BUZZ				  BIT	      95	   5
+CSDB				  NUMBER    0038	  10
+CSDS				  NUMBER    0030	   9
+CY				  BIT	      D7
+DPH				  DATA	      83
+DPL				  DATA	      82
+EA				  BIT	      AF
+ES				  BIT	      AC
+ET0				  BIT	      A9
+ET1				  BIT	      AB
+EX0				  BIT	      A8
+EX1				  BIT	      AA
+EXTI0				  CODE	    0003
+EXTI1				  CODE	    0013
+F0				  BIT	      D5
+GG				  NUMBER    0073	  18
+IE				  DATA	      A8
+IE0				  BIT	      89
+IE1				  BIT	      8B
+INT0				  BIT	      B2
+INT1				  BIT	      B3
+IP				  DATA	      B8
+IT0				  BIT	      88
+IT1				  BIT	      8A
+KEYS				  NUMBER    007C	  12
+MLOOP				  CODE	    00AE	  58
+MM				  NUMBER    0074	  17
+NIE60				  CODE	    0113	 137
+NIEGODZINYDOL			  CODE	    0166	 199
+NIEGODZINYGORA			  CODE	    0157	 190
+NIEGORA				  CODE	    01AC	 241
+NIEMINUTYDOL			  CODE	    0184	 217
+NIEMINUTYGORA			  CODE	    0175	 208
+NIESEKUNDYDOL			  CODE	    01A2	 235
+NIESEKUNDYGORA			  CODE	    0193	 226
+NIESTABILNA			  CODE	    00E1	 103
+NOACC7				  CODE	    00ED	 109
+OBSLUGAKLAWIATURY		  CODE	    0148	 181
+OV				  BIT	      D2
+P				  BIT	      D0
+P0				  DATA	      80
+P1				  DATA	      90
+P2				  DATA	      A0
+P3				  DATA	      B0
+
+ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. Heinz                                         PAGE 7
+
+
+
+SYMBOL				  TYPE     VALUE	LINE
+------------------------------------------------------------
+PCON				  DATA	      87
+PRZELICZ			  CODE	    011A	 144
+PS				  BIT	      BC
+PSW				  DATA	      D0
+PT0				  BIT	      B9
+PT1				  BIT	      BB
+PX0				  BIT	      B8
+PX1				  BIT	      BA
+RB8				  BIT	      9A
+RD				  BIT	      B7
+REN				  BIT	      9C
+RESET				  CODE	    0000
+RI				  BIT	      98
+RS0				  BIT	      D3
+RS1				  BIT	      D4
+RXD				  BIT	      B0
+SBUF				  DATA	      99
+SCON				  DATA	      98
+SEG7				  BIT	      96	   4
+SINT				  CODE	    0023
+SKEY				  BIT	      B5	   7
+SM0				  BIT	      9F
+SM1				  BIT	      9E
+SM2				  BIT	      9D
+SP				  DATA	      81
+SS				  NUMBER    0075	  16
+STABILNA			  CODE	    00DC	  99
+START				  CODE	    0080	  30
+T0				  BIT	      B4
+T1				  BIT	      B5
+TB8				  BIT	      9B
+TCON				  DATA	      88
+TEST				  BIT	      97	   3
+TF0				  BIT	      8D
+TF1				  BIT	      8F
+TH0				  DATA	      8C
+TH1				  DATA	      8D
+TI				  BIT	      99
+TIMER0				  CODE	    000B
+TIMER1				  CODE	    001B
+TL0				  DATA	      8A
+TL1				  DATA	      8B
+TMOD				  DATA	      89
+TR0				  BIT	      8C
+TR1				  BIT	      8E
+TXD				  BIT	      B1
+WR				  BIT	      B6
+WZORY				  CODE	    01B0	 246
+ZEGAR				  NUMBER    0076	  14
+ZMNIEJSZGODZINY			  CODE	    0164	 196
+ZMNIEJSZMINUTY			  CODE	    0182	 214
+ZMNIEJSZSEKUNDY			  CODE	    01A0	 232
+ZWIEKSZGODZINY			  CODE	    0155	 187
+ZWIEKSZMINUTY			  CODE	    0173	 205
+ZWIEKSZSEKUNDY			  CODE	    0191	 223
